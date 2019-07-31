@@ -1,11 +1,11 @@
 require('dotenv').config();
 
-const axios = require('axios');
-const express = require('express');
-const bodyParser = require('body-parser');
-const qs = require('querystring');
-const ticket = require('./ticket');
-const signature = require('./verifySignature');
+import { post } from 'axios';
+import express from 'express';
+import { urlencoded, json } from 'body-parser';
+import { stringify } from 'querystring';
+import { create } from './ticket';
+import { isVerified } from './verifySignature';
 const debug = require('debug')('slash-command-template:index');
 
 const apiUrl = 'https://slack.com/api';
@@ -24,8 +24,8 @@ const rawBodyBuffer = (req, res, buf, encoding) => {
   }
 };
 
-app.use(bodyParser.urlencoded({verify: rawBodyBuffer, extended: true }));
-app.use(bodyParser.json({ verify: rawBodyBuffer }));
+app.use(urlencoded({verify: rawBodyBuffer, extended: true }));
+app.use(json({ verify: rawBodyBuffer }));
 
 app.get('/', (req, res) => {
   res.send('<h2>The Slash Command and Dialog app is running</h2> <p>Follow the' +
@@ -41,7 +41,7 @@ app.post('/command', (req, res) => {
   const { text, trigger_id } = req.body;
 
   // Verify the signing secret
-  if (signature.isVerified(req)) {
+  if (isVerified(req)) {
     // create the dialog payload - includes the dialog structure, Slack API token,
     // and trigger ID
     const dialog = {
@@ -80,7 +80,7 @@ app.post('/command', (req, res) => {
     };
 
     // open the dialog by calling dialogs.open method and sending the payload
-    axios.post(`${apiUrl}/dialog.open`, qs.stringify(dialog))
+    post(`${apiUrl}/dialog.open`, stringify(dialog))
       .then((result) => {
         debug('dialog.open: %o', result.data);
         res.send('');
@@ -102,7 +102,7 @@ app.post('/interactive', (req, res) => {
   const body = JSON.parse(req.body.payload);
 
   // check that the verification token matches expected value
-  if (signature.isVerified(req)) {
+  if (isVerified(req)) {
     debug(`Form submission received: ${body.submission.trigger_id}`);
 
     // immediately respond with a empty 200 response to let
@@ -110,7 +110,7 @@ app.post('/interactive', (req, res) => {
     res.send('');
 
     // create Helpdesk ticket
-    ticket.create(body.user.id, body.submission);
+    create(body.user.id, body.submission);
   } else {
     debug('Token mismatch');
     res.sendStatus(404);
